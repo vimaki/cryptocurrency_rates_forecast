@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os.path
 import pytz
 from typing import Union
@@ -9,7 +10,10 @@ import yfinance as yf
 COINS = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'XRP-USD', 'SOL-USD',
          'LUNA-USD', 'ADA-USD', 'AVAX-USD', 'DOGE-USD', 'SHIB-USD']
 
+CURRENT_TIMEZONE = pytz.timezone('Europe/Amsterdam')
 OUTPUT_FILE = 'cryptocurrencies_data.csv'
+
+logging.basicConfig(level=logging.INFO)
 
 
 class DataCollector:
@@ -17,12 +21,35 @@ class DataCollector:
                  start_date: Union[str, datetime.datetime] = '2009-01-03',
                  appending: bool = False):
         self.coins = coins
-        self.start_date = start_date
+
+        if self.__date_validation(start_date):
+            self.start_date = start_date
+        else:
+            # Since an invalid date was transmitted, the date is set
+            # to the day after tomorrow so that no data will be
+            # downloaded from the Yahoo API
+            self.start_date = (datetime.datetime.now(CURRENT_TIMEZONE)
+                               + datetime.timedelta(days=2))
+
         self.appending = appending
         self.coin_data = ''
 
+    @staticmethod
+    def __date_validation(input_date: str) -> bool:
+        if isinstance(input_date, str):
+            try:
+                input_date = datetime.datetime.strptime(input_date, '%Y-%m-%d')
+            except ValueError:
+                logging.warning('Invalid date format!')
+                return False
+        todays_date = datetime.datetime.now(CURRENT_TIMEZONE)
+        if input_date.replace(tzinfo=CURRENT_TIMEZONE) > todays_date:
+            logging.warning('This date has not arrived yet!')
+            return False
+        return True
+
     def get_data(self):
-        todays_date = datetime.datetime.now(pytz.timezone('Europe/Amsterdam'))
+        todays_date = datetime.datetime.now(CURRENT_TIMEZONE)
         last_sunday_offset = todays_date.weekday() + 1
         last_sunday = todays_date - datetime.timedelta(days=last_sunday_offset)
 
